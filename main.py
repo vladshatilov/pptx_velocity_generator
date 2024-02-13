@@ -46,24 +46,23 @@ def get_sku_images_list():
     sku_list_images = []
     for address, dirs, files in os.walk(BASE_FOLDER):
         for filename in files:
-            # if (filename.split('.')[-1] not in ('xlsx', 'csv', 'xls')):
             if filename.lower().endswith(('.jpg', '.jpeg', '.gif', '.png', '.bmp')):
                 sku_list_images.append(filename)
     return sku_list_images
 
 
-def generate_square(slide_one, height, width):
+def generate_square(slide_item, height, width):
     """
     Add rectangle to slide with its width and height
-    :param slide_one: slide to add image
+    :param slide_item: slide to add image
     :param height: height of square
     :param width: width of square
     :return: None
     """
-    line1 = slide_one.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, 0, 0, width, 0)
-    line2 = slide_one.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, width, 0, width, height)
-    line3 = slide_one.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, width, height, 0, height)
-    line4 = slide_one.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, 0, height, 0, 0)
+    line1 = slide_item.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, 0, 0, width, 0)
+    line2 = slide_item.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, width, 0, width, height)
+    line3 = slide_item.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, width, height, 0, height)
+    line4 = slide_item.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, 0, height, 0, 0)
 
 
 def add_image_to_slide(slide_one, sku_name, context):
@@ -76,20 +75,36 @@ def add_image_to_slide(slide_one, sku_name, context):
     """
     for product in context['sku_list_images']:
         if sku_name == product.split('.')[0]:
-            # print(context['velocity_graph'])
             if context['velocity_graph']:
-                margin_left = context['cur_val_ros'] / context['max_val_ros'] * context['graph_width']
-                margin_top = context['graph_height'] - context['cur_val_nd'] / context['max_val_nd'] * context['graph_height']
+                margin_left = context['cur_val_nd'] / context['max_val_nd'] * context['graph_width']
+                margin_top = context['graph_height'] - context['cur_val_ros'] / context['max_val_ros'] * context['graph_height']
             else:
                 height_img_count = 15
                 margin_left = (context['index'] // height_img_count) * Cm(5)
                 margin_top = context['index'] * Cm(1) - (context['index'] // height_img_count) * Cm(height_img_count)
 
             image_item_path = os.path.join(BASE_FOLDER, product)
-            # print(image_item_path, margin_left, margin_top, context['image_height'], context['cur_val_nd'], context['cur_val_ros'])
             pic = slide_one.shapes.add_picture(image_item_path, margin_left, margin_top, height=context['image_height'])
             return
     context['not_found_sku'].add(sku_name)
+
+
+def get_sku_list():
+    """
+    Get sku list from xlsx/csv file
+    :return: sku list as pandas dataframe
+    """
+    import pandas as pd
+    sku_list_excel = None
+    try:
+        sku_list_excel = pd.read_excel(xlsx_path, sheet_name=sheet_name)
+    except Exception as err_xlsx:
+        print(f'Error reading excel file: {err_xlsx}')
+        try:
+            sku_list_excel = pd.read_csv(csv_path, sep=';')
+        except Exception as err_csv:
+            print(f'Error reading csv file: {err_csv}')
+    return sku_list_excel
 
 
 def main() -> None:
@@ -115,16 +130,7 @@ def main() -> None:
     height = Cm(15)
     width = Cm(20)
 
-    sku_list_excel = None
-    import pandas as pd
-    try:
-        sku_list_excel = pd.read_excel(xlsx_path, sheet_name=sheet_name)
-    except Exception as err_xlsx:
-        print(f'Error reading excel file: {err_xlsx}')
-        try:
-            sku_list_excel = pd.read_csv(csv_path, sep=';')
-        except Exception as err_csv:
-            print(f'Error reading csv file: {err_csv}')
+    sku_list_excel = get_sku_list()
 
     if sku_list_excel is not None:
         sku_list_excel[['sku']] = sku_list_excel[['sku']].astype(str)
@@ -135,7 +141,10 @@ def main() -> None:
 
         for index, row in sku_list_excel.iterrows():
             series_product = chart_data.add_series(f"sku: {row['sku']}")
-            series_product.add_data_point(row['ros'], row['nd'])
+            series_product.add_data_point(row['nd'], row['ros'])
+
+        series_median = chart_data.add_series(f"median")
+        series_median.add_data_point(sku_list_excel.median()['nd'], sku_list_excel.median()['ros'])
 
         x, y, cx, cy = 0, 0, width, height
 
@@ -172,13 +181,10 @@ def main() -> None:
             context['cur_val_ros'] = row['ros']
             add_image_to_slide(slide_two, sku_name, context)
 
-        # logger = logging.getLogger()
-        # logger.addHandler(logging.StreamHandler(sys.stdout))
         if context['not_found_sku']:
             with open(f"{uniquify(FILE_NAME).split('.')[0]}.txt", "w") as file:
                 for sku_item in context['not_found_sku']:
                     file.write(f'SKU image not found in folder: {sku_item}. (Or maybe it have different extension, not from list: .jpg/.jpeg/.gif/.png/.bmp\n')
-                    # logger.info(f'SKU image not found in folder: {sku_item}. (Or maybe it have different extension, not from list: .jpg/.jpeg/.gif/.png/.bmp')
                     print(f'SKU image not found in folder: {sku_item}. (Or maybe it have different extension, not from list: .jpg/.jpeg/.gif/.png/.bmp')
 
         one_more_slide_layout = prs.slide_layouts[3]
@@ -190,45 +196,13 @@ def main() -> None:
             if shape.has_text_frame:
                 shape.left = Cm(25)
 
-        # for shape in slide_three.shapes:
-            # if shape.is_placeholder and shape.name == 'Content Placeholder 2':
-            #     shape.height = Cm(15)
-            #     shape.width = Cm(4)
-            #     shape.left = Cm(20)
-
         for index, row in sku_list_excel.sort_values('ros', ascending=False, ignore_index=True).iterrows():
             context['index'] = index
             context['image_height'] = Cm(1)
             sku_name = row['sku']
             add_image_to_slide(slide_three, sku_name, context)
 
-                    # text_frame = shape.text_frame
-                    # p = text_frame.paragraphs[0]
-                    # from pptx.enum.text import PP_ALIGN
-                    # p.text = p.text + str(index+1) + ' - ' + str(sku_name) + '\n'
-                    # p.alignment = PP_ALIGN.LEFT
-                    # print(index)
-                    #
-                    # font = p.font
-                    # font.name = 'Calibri'
-                    # from pptx.util import Pt
-                    # from pptx.dml.color import RGBColor
-                    # from pptx.enum.dml import MSO_THEME_COLOR
-                    # font.size = Pt(8)
-                    # font.bold = False
-                    # font.italic = None  # cause value to be inherited from theme
-                    # # font.color.theme_color = MSO_THEME_COLOR.ACCENT_1
-
-
-
-
-        # try:
-        #     os.remove(FILE_NAME)
-        # except OSError:
-        #     pass
-
         prs.save(uniquify(FILE_NAME))
-        # prs.save(FILE_NAME)
 
     else:
         print('No sku list found in xlsx/csv file')
@@ -236,4 +210,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    # os.system("pause")
