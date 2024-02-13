@@ -19,4 +19,5 @@ setup(
     executables=executables
 )
 
-# pyinstaller --hiddenimport pptx --collect-submodules pptx --collect-data pptx -F --windowed --onefile --icon=icon_file.ico main.py
+# pyinstaller --hiddenimport pptx --collect-submodules pptx --collect-data pptx -F --windowed --onefile --version-file file_version_info.txt --icon=icon_file.ico main.py
+# pyinstaller --hiddenimport pptx --collect-submodules pptx --collect-data pptx -F --onefile --version-file file_version_info.txt --icon=icon_file.ico main.py
