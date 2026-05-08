@@ -144,7 +144,8 @@ def main() -> None:
             series_product.add_data_point(row['nd'], row['ros'])
 
         series_median = chart_data.add_series(f"median")
-        series_median.add_data_point(sku_list_excel.median()['nd'], sku_list_excel.median()['ros'])
+        median_row = sku_list_excel.median(numeric_only=True)
+        series_median.add_data_point(median_row["nd"], median_row["ros"])
 
         x, y, cx, cy = 0, 0, width, height
 
