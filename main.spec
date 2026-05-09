@@ -1,11 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files
-from PyInstaller.utils.hooks import collect_submodules
+import os
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 datas = []
 hiddenimports = ['openpyxl']
 datas += collect_data_files('pptx')
 hiddenimports += collect_submodules('pptx')
+
+# Pillow — needed for image rotation and WebP support
+hiddenimports += ['PIL', 'PIL.Image', 'PIL.WebPImagePlugin',
+                  'PIL.JpegImagePlugin', 'PIL.PngImagePlugin',
+                  'PIL.GifImagePlugin', 'PIL.BmpImagePlugin']
+
+# Bundle fallback placeholder image if present next to the spec
+if os.path.exists('fallback.png'):
+    datas += [('fallback.png', '.')]
+
+# Bundle user-facing readme so it always lands next to hello_kitty.exe
+if os.path.exists('user_readme.txt'):
+    datas += [('user_readme.txt', '.')]
 
 
 a = Analysis(
@@ -28,12 +41,12 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='main',
+    name='hello_kitty',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -49,5 +62,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='main',
+    name='hello_kitty',
 )

@@ -8,6 +8,7 @@
 
 ```
 velocity.exe  (или main.py)
+fallback.png           ← необязательно: изображение-заглушка для отсутствующих SKU
 example_folder/
     velocity.xlsx
     <sku>.jpg / <sku>.png / ...   ← изображения, имя файла = значение столбца sku
@@ -17,15 +18,36 @@ example_folder/
 
 ## Слайды
 
-**Слайд 1** — XY-диаграмма рассеяния: ось X = `nd`, ось Y = `ros`, подписи = `sku`.
-Медиана отображается красным перекрестием (горизонтальная + вертикальная линии).
+**Слайд 1** — XY-диаграмма рассеяния (75% от размера слайда, по центру): ось X = `nd`, ось Y = `ros`, подписи = `sku`.
+Медиана отображается красным перекрестием. Подпись внизу: «Пересечение красных линий — медиана».
 
-**Слайд 2** — те же данные, но вместо точек — картинки SKU, расположенные внутри рамки.
+**Слайд 2** — те же данные, но вместо точек — картинки SKU внутри рамки.
+Картинки сохраняют пропорции (высота ≤ 2 см).
+Если картинка вертикальная (H > 2×W), она автоматически поворачивается на 90° против часовой.
 Размеры рамки задаются в `Sheet2` ячейки `A2` (ширина, см) и `B2` (высота, см); по умолчанию 20 × 15 см.
 
-**Слайд 3** — таблица, отсортированная по столбцу `rank` (по возрастанию), с картинками слева.
-Столбцы: Рейтинг, Изм vs. LY, Продажи на ТТ, ND LM, Микс цена.
-Строки раскрашиваются по категориям, заданным в `Sheet2` ячейки `C2:E2` — пороговые значения rank для 4 цветовых групп (зелёный / синий / жёлтый / красный).
+**Слайд 3** — до 4 секций бок о бок, по одной на категорию.
+Каждая секция: колонка картинок + таблица данных.
+Таблица отсортирована по `rank`. Столбцы: Рейтинг, Изм vs. LY, Продажи на ТТ, ND LM, Микс цена.
+`ros` отображается с 1 знаком после запятой; `nd` — в виде процентов (0.14 → 14%).
+Окрашивается только ячейка **Рейтинг**; выравнивание по центру; ширина столбцов 1 см.
+Картинки сохраняют пропорции (высота = высота строки).
+Если картинка вертикальная (H > 2×W), она поворачивается на 90° против часовой.
+
+Категории задаются в `Sheet2` ячейки `C2:E2` — пороговые значения rank для 4 цветовых групп
+(зелёный / синий / жёлтый / красный).
+
+---
+
+## Изображение-заглушка (для отсутствующих SKU)
+
+Вместо красного крестика программа подставляет изображение-заглушку.
+Приоритет:
+1. `fallback.png` рядом с exe (можно заменить на любое фото/логотип)
+2. `default_image.png` — серый PNG, генерируется автоматически при первом запуске
+
+Чтобы использовать свою картинку — положите файл с именем `fallback.png` рядом с `velocity.exe`.
+При сборке exe через `main.spec` файл `fallback.png` автоматически включается в bundle.
 
 ---
 
@@ -33,6 +55,8 @@ example_folder/
 
 ### Sheet1 — обязательные столбцы (порядок не важен):
 | sku | nd | ros | rank | change | price |
+
+`nd` принимается как десятичная дробь (0.14) или строка с процентом («14%»).
 
 ### Sheet2 — настройки (необязательно):
 | A1 | B1 | C1 | D1 | E1 |
@@ -49,27 +73,42 @@ example_folder/
 
 `.jpg` `.jpeg` `.png` `.gif` `.bmp` `.tiff` `.tif` `.webp` `.heic` `.avif`
 
+WebP полностью поддерживается при наличии Pillow (включён в сборку exe).
+
 ---
 
 ## Сборка исполняемого файла
 
-Требования: `pip install pyinstaller openpyxl python-pptx`
+Требования: `pip install pyinstaller openpyxl python-pptx pillow`
 (**pandas и numpy не нужны**)
 
-### Рекомендуется: папка `dist/main/` — быстрый запуск
+Pillow нужен для определения размеров изображений (поворот вытянутых картинок) и WebP.
+
+### Рекомендуется: через spec-файл (включает fallback.png в bundle)
 
 ```
-pyinstaller --hiddenimport openpyxl --collect-submodules pptx --collect-data pptx --exclude-module pandas --exclude-module numpy --exclude-module matplotlib --exclude-module scipy --exclude-module IPython --exclude-module tkinter --windowed --version-file file_version_info.txt --icon=icon_file.ico main.py
+pyinstaller main.spec
 ```
 
-Результат: папка `dist/main/` с `main.exe` и всеми зависимостями (~40 MB).
+Результат: папка `dist/main/` с `main.exe` и всеми зависимостями.
 **Переносится на ПК без Python целиком — копировать всю папку `dist/main/`.**
 
-### Альтернатива: один файл `.exe` — медленнее на запуск
+### Альтернатива: командная строка (папка)
 
 ```
-pyinstaller --hiddenimport openpyxl --collect-submodules pptx --collect-data pptx --exclude-module pandas --exclude-module numpy --exclude-module matplotlib --exclude-module scipy --exclude-module IPython --exclude-module tkinter -F --windowed --onefile --version-file file_version_info.txt --icon=icon_file.ico main.py
+pyinstaller --hiddenimport openpyxl --hiddenimport PIL --hiddenimport PIL.Image --hiddenimport PIL.WebPImagePlugin --collect-submodules pptx --collect-data pptx --exclude-module pandas --exclude-module numpy --exclude-module matplotlib --exclude-module scipy --exclude-module IPython --exclude-module tkinter --version-file file_version_info.txt --icon=icon_file.ico main.py
 ```
 
-> `--onefile` при каждом запуске распаковывается во временную папку (~3–10 сек).
+### Один файл `.exe` — медленнее на запуск (~3–10 сек)
+
+```
+pyinstaller --hiddenimport openpyxl --hiddenimport PIL --hiddenimport PIL.Image --hiddenimport PIL.WebPImagePlugin --collect-submodules pptx --collect-data pptx --exclude-module pandas --exclude-module numpy --exclude-module matplotlib --exclude-module scipy --exclude-module IPython --exclude-module tkinter -F --onefile --version-file file_version_info.txt --icon=icon_file.ico main.py
+```
+
+> `--onefile` при каждом запуске распаковывается во временную папку.
 > `--onedir` (без `-F`) запускается мгновенно — рекомендуется для распространения.
+
+### Консольное окно
+
+Программа запускается с консольным окном (`console=True`), в котором отображается прогресс.
+Окно остаётся открытым до нажатия Enter — пользователь видит статус и ошибки.
